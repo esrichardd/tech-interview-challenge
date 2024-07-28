@@ -1,0 +1,6 @@
+[submodule "tech-interview-scrappers"]
+	path = tech-interview-scrappers
+	url = https://github.com/esrichardd/tech-interview-scrappers.git
+[submodule "tech-interview-core"]
+	path = tech-interview-core
+	url = https://github.com/esrichardd/tech-interview-core.git
