@@ -1,0 +1,74 @@
+services:
+  tech-interview-mysql:
+    image: mysql:5.7
+    ports:
+      - "3307:3307"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_TCP_PORT=${MYSQL_TCP_PORT}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "${MYSQL_USER}",
+          "-p${MYSQL_PASSWORD}",
+        ]
+      timeout: 10s
+      retries: 10
+  tech-interview-redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 10
+    depends_on:
+      tech-interview-mysql:
+        condition: service_healthy
+  tech-interview-core:
+    build:
+      context: ./tech-interview-core
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=development
+      - MYSQL_HOST=${MYSQL_HOST}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_TCP_PORT=${MYSQL_TCP_PORT}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+    volumes:
+      - ./tech-interview-core/src:/usr/src/tech-interview-core/src
+    restart: always
+    depends_on:
+      tech-interview-mysql:
+        condition: service_healthy
+      tech-interview-redis:
+        condition: service_healthy
+  tech-interview-scrappers:
+    build:
+      context: ./tech-interview-scrappers
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./tech-interview-scrappers:/app
+      - $GOPATH/pkg/mod/cache:/go/pkg/mod/cache
+    environment:
+      - GO_ENV=development
+      - GOPATH=/go
+    restart: always
