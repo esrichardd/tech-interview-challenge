@@ -23,6 +23,8 @@ services:
         ]
       timeout: 10s
       retries: 10
+    networks:
+      - tech-interview-network
   tech-interview-redis:
     image: redis:alpine
     ports:
@@ -34,15 +36,49 @@ services:
     depends_on:
       tech-interview-mysql:
         condition: service_healthy
+    networks:
+      - tech-interview-network
+  tech-interview-zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - tech-interview-network
+  tech-interview-kafka:
+    container_name: tech-interview-kafka
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      - KAFKA_ADVERTISED_LISTENERS=${TECH_INTERVIEW_KAFKA_ADVERTISED_LISTENERS}
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=${TECH_INTERVIEW_KAFKA_LISTENER_SECURITY_PROTOCOL_MAP}
+      - KAFKA_LISTENER_NAMES=${TECH_INTERVIEW_KAFKA_LISTENER_NAMES}
+      - KAFKA_LISTENER_NAME=${TECH_INTERVIEW_KAFKA_LISTENER_NAME}
+      - KAFKA_LISTENERS=${TECH_INTERVIEW_KAFKA_LISTENERS}
+      - KAFKA_INTER_BROKER_LISTENER_NAME=${TECH_INTERVIEW_KAFKA_INTER_BROKER_LISTENER_NAME}
+      - KAFKA_ZOOKEEPER_CONNECT=${TECH_INTERVIEW_KAFKA_ZOOKEEPER_CONNECT}
+    # environment:
+    #   - KAFKA_ADVERTISED_LISTENERS=INSIDE://tech-interview-kafka:9093,OUTSIDE://localhost:9092
+    #   - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+    #   - KAFKA_LISTENER_NAMES=INSIDE,OUTSIDE
+    #   - KAFKA_LISTENER_NAME=INSIDE
+    #   - KAFKA_LISTENERS=INSIDE://0.0.0.0:9093,OUTSIDE://0.0.0.0:9092
+    #   - KAFKA_INTER_BROKER_LISTENER_NAME=INSIDE
+    #   - KAFKA_ZOOKEEPER_CONNECT=tech-interview-zookeeper:2181
+    depends_on:
+      - tech-interview-zookeeper
+    networks:
+      - tech-interview-network
   tech-interview-core:
     build:
       context: ./tech-interview-core
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3002:3002"
     environment:
-      - PORT=3000
-      - NODE_ENV=development
+      - NODE_ENV=${TECH_INTERVIEW_CORE_NODE_ENV}
+      - PORT=${TECH_INTERVIEW_CORE_PORT}
       - MYSQL_HOST=${MYSQL_HOST}
       - MYSQL_DATABASE=${MYSQL_DATABASE}
       - MYSQL_USER=${MYSQL_USER}
@@ -53,22 +89,60 @@ services:
     volumes:
       - ./tech-interview-core/src:/usr/src/tech-interview-core/src
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --show-error --location http://localhost:3002/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       tech-interview-mysql:
         condition: service_healthy
       tech-interview-redis:
         condition: service_healthy
+      tech-interview-kafka:
+        condition: service_started
+    networks:
+      - tech-interview-network
   tech-interview-scrappers:
     build:
       context: ./tech-interview-scrappers
       dockerfile: Dockerfile
       target: development
     ports:
-      - "3001:3001"
+      - "3003:3003"
     volumes:
       - ./tech-interview-scrappers:/app
       - $GOPATH/pkg/mod/cache:/go/pkg/mod/cache
     environment:
       - GO_ENV=development
       - GOPATH=/go
+      - PORT=${TECH_INTERVIEW_SCRAPPERS_PORT}
     restart: always
+    depends_on:
+      tech-interview-mysql:
+        condition: service_healthy
+      tech-interview-redis:
+        condition: service_healthy
+      tech-interview-core:
+        condition: service_healthy
+    networks:
+      - tech-interview-network
+  tech-interview-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    ports:
+      - "8080:80"
+    environment:
+      - PMA_HOST=${MYSQL_HOST}
+      - PMA_PORT=${MYSQL_TCP_PORT}
+      - PMA_USER=${MYSQL_USER}
+      - PMA_PASSWORD=${MYSQL_PASSWORD}
+    networks:
+      - tech-interview-network
+    depends_on:
+      tech-interview-mysql:
+        condition: service_healthy
+
+networks:
+  tech-interview-network:
+    driver: bridge
