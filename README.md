@@ -1,6 +1,6 @@
 # Tech Interview Challenge
 
-Este proyecto contiene una serie de servicios que se ejecutan en contenedores Docker, coordinados por un archivo `docker-compose.yml`. A continuación se explica cómo clonar e inicializar el proyecto.
+Este proyecto contiene una serie de servicios que se ejecutan en contenedores Docker, coordinados por un archivo `docker-compose.yml`.
 
 ## Tecnologías Utilizadas
 - Go 1.22.2: Lenguaje de programación para el backend.
